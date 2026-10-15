@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trajeto · Um jogo de decisões</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   CONFIGURAÇÃO DO GOOGLE FORMS — edite só esta parte do JS
+   (ver bloco CONFIG no <script> lá embaixo)
+   ========================================================= */
+:root{
+  --bg:#EEF3F1; --phone:#FFFFFF; --ink:#1E2A2B; --muted:#5F6F70;
+  --brand:#0FA37F; --brand-ink:#FFFFFF; --brand-soft:#DDF4EC;
+  --accent:#FFB547; --accent-soft:#FFF1DA; --rain:#5B8DEF; --rain-soft:#E4ECFD;
+  --card:#F6F8F7; --line:#E1E7E5; --road:#2F3B3C; --shadow:0 18px 50px rgba(20,40,38,.14);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1515; --phone:#172020; --ink:#EAF2F0; --muted:#9AB0AD;
+    --brand:#2CC79E; --brand-ink:#08201A; --brand-soft:#173A31;
+    --accent:#FFC46B; --accent-soft:#3A2F1C; --rain:#86A9F5; --rain-soft:#1D2A44;
+    --card:#1E2929; --line:#2A3838; --road:#0B1010; --shadow:0 18px 50px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1515; --phone:#172020; --ink:#EAF2F0; --muted:#9AB0AD;
+  --brand:#2CC79E; --brand-ink:#08201A; --brand-soft:#173A31;
+  --accent:#FFC46B; --accent-soft:#3A2F1C; --rain:#86A9F5; --rain-soft:#1D2A44;
+  --card:#1E2929; --line:#2A3838; --road:#0B1010; --shadow:0 18px 50px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:"Nunito",system-ui,-apple-system,"Segoe UI",sans-serif;
+  display:flex;justify-content:center;align-items:center;min-height:100dvh;-webkit-font-smoothing:antialiased}
+.phone{width:100%;max-width:430px;height:100dvh;max-height:880px;background:var(--phone);position:relative;
+  display:flex;flex-direction:column;overflow:hidden}
+@media (min-width:520px){.phone{border-radius:34px;box-shadow:var(--shadow);height:92dvh;border:1px solid var(--line)}}
+
+/* barra do app */
+.appbar{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 8px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:900;font-size:20px;letter-spacing:-.3px}
+.logo .dot{width:28px;height:28px;border-radius:9px;background:var(--brand);display:grid;place-items:center;color:var(--brand-ink)}
+.chip{font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;background:var(--brand-soft);color:var(--brand);white-space:nowrap}
+.chip.rain{background:var(--rain-soft);color:var(--rain)} .chip.sun{background:var(--accent-soft);color:#C27A00}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .chip.sun{color:var(--accent)}}
+
+/* trilha / mapa de progresso */
+.route{margin:4px 18px 6px;height:46px;position:relative;opacity:1;transition:opacity .4s}
+.route.hide{opacity:0}
+.road{position:absolute;left:10px;right:10px;top:22px;height:6px;border-radius:6px;background:var(--line)}
+.road-fill{position:absolute;left:10px;top:22px;height:6px;border-radius:6px;background:var(--brand);transition:width .9s cubic-bezier(.5,0,.2,1)}
+.stop{position:absolute;top:18px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--phone);border:3px solid var(--line);transition:border-color .4s,background .4s}
+.stop.done{border-color:var(--brand);background:var(--brand)}
+.stop.flag{border-radius:4px}
+.car{position:absolute;top:0;margin-left:-16px;width:32px;height:22px;transition:left .9s cubic-bezier(.5,0,.2,1)}
+.car svg{width:32px;height:22px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.18))}
+.car.bump svg{animation:bump .9s ease}
+@keyframes bump{0%,100%{transform:translateY(0)}30%{transform:translateY(-3px)}60%{transform:translateY(1px)}}
+
+/* palco */
+.stage{flex:1;position:relative;overflow:hidden}
+.screen{position:absolute;inset:0;padding:8px 20px 20px;display:flex;flex-direction:column;overflow-y:auto;
+  opacity:0;transform:translateX(40px);pointer-events:none;transition:opacity .35s ease,transform .45s cubic-bezier(.3,.7,.2,1)}
+.screen.on{opacity:1;transform:none;pointer-events:auto}
+.screen.off{opacity:0;transform:translateX(-40px)}
+.scene{border-radius:24px;padding:18px;margin-bottom:16px;position:relative;overflow:hidden;min-height:132px;display:flex;flex-direction:column;justify-content:flex-end}
+.scene .art{position:absolute;right:-6px;top:-6px;width:130px;height:130px;opacity:.95}
+.scene h2{font-size:22px;font-weight:900;letter-spacing:-.3px;max-width:68%;line-height:1.15}
+.scene p{font-size:14.5px;color:var(--muted);margin-top:6px;max-width:75%;line-height:1.4}
+.s-brand{background:var(--brand-soft)} .s-sun{background:var(--accent-soft)} .s-rain{background:var(--rain-soft)}
+.kicker{font-size:12px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;color:var(--brand);margin-bottom:6px}
+.q{font-size:18px;font-weight:800;line-height:1.35;margin:2px 0 14px}
+.hint{font-size:13.5px;color:var(--muted);margin:-6px 0 14px;line-height:1.4}
+
+.opts{display:grid;gap:10px}
+.opts.grid2{grid-template-columns:1fr 1fr}
+.opt{all:unset;cursor:pointer;display:flex;align-items:center;gap:12px;padding:15px 16px;border-radius:18px;background:var(--card);
+  border:2px solid transparent;font-weight:700;font-size:16px;line-height:1.3;transition:transform .12s,border-color .2s,background .2s;-webkit-tap-highlight-color:transparent}
+.opt:active{transform:scale(.98)}
+.opt:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.opt .bubble{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;transition:all .2s}
+.opt.sel{border-color:var(--brand);background:var(--brand-soft)}
+.opt.sel .bubble{background:var(--brand);border-color:var(--brand)}
+.opt.sel .bubble::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--brand-ink)}
+.opt.small{font-size:14.5px;padding:12px 13px}
+.opt .em{font-size:22px}
+.opt.big{font-size:22px;font-weight:900;justify-content:center;padding:18px}
+.opt.big .bubble{display:none}
+
+.spacer{flex:1;min-height:16px}
+.btn{all:unset;display:block;cursor:pointer;text-align:center;padding:17px;border-radius:18px;background:var(--brand);color:var(--brand-ink);font-weight:900;font-size:17px;
+  transition:transform .12s,opacity .2s;box-shadow:0 8px 20px rgba(15,163,127,.25)}
+.btn:active{transform:scale(.98)} .btn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.btn[disabled]{opacity:.35;pointer-events:none;box-shadow:none}
+.btn.ghost{background:transparent;color:var(--muted);box-shadow:none;font-weight:800;font-size:15px;padding:12px}
+.row{display:flex;gap:10px;align-items:center}
+
+/* tabela de preços */
+.fare-btn{all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px;color:var(--brand);padding:10px 12px;border-radius:14px;background:var(--brand-soft);align-self:flex-start;margin-bottom:14px}
+.fare{background:var(--card);border-radius:20px;padding:16px;display:grid;gap:10px}
+.fare-line{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:15px}
+.fare-line b{font-weight:900;font-size:17px;white-space:nowrap}
+.fare-line span{color:var(--muted)}
+.fare-note{font-size:13px;color:var(--muted);border-top:1px dashed var(--line);padding-top:10px;line-height:1.4}
+.sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .3s;z-index:5}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--phone);border-radius:26px 26px 0 0;padding:12px 20px 26px;z-index:6;
+  transform:translateY(105%);transition:transform .38s cubic-bezier(.3,.7,.2,1)}
+.sheet.open{transform:none} .sheet-bg.open{opacity:1;pointer-events:auto}
+.grip{width:42px;height:5px;border-radius:5px;background:var(--line);margin:0 auto 14px}
+.sheet h3{font-size:18px;font-weight:900;margin-bottom:12px}
+
+/* capa */
+.hero{flex:1;display:flex;flex-direction:column;justify-content:center;text-align:left;gap:14px}
+.hero h1{font-size:44px;font-weight:900;letter-spacing:-1.2px;line-height:1}
+.hero .sub{font-size:15px;font-weight:800;color:var(--brand);letter-spacing:.4px;text-transform:uppercase}
+.hero p{font-size:16px;color:var(--muted);line-height:1.5}
+.city{width:100%;height:auto;border-radius:24px;background:var(--brand-soft)}
+.meta{display:flex;gap:8px;flex-wrap:wrap}
+.consent{font-size:14.5px;line-height:1.55;color:var(--muted);background:var(--card);border-radius:20px;padding:16px;margin-bottom:14px}
+.consent p+p{margin-top:10px}
+.consent b{color:var(--ink)}
+
+/* toast */
+.toast{position:absolute;left:50%;top:118px;transform:translate(-50%,-20px);background:var(--ink);color:var(--phone);font-weight:800;font-size:14px;
+  padding:10px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:all .35s;z-index:8;white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* final */
+.center{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:14px}
+.center h2{font-size:28px;font-weight:900;letter-spacing:-.5px}
+.center p{color:var(--muted);font-size:16px;line-height:1.5;max-width:320px}
+.badge{width:120px;height:120px}
+.spin{width:44px;height:44px;border-radius:50%;border:5px solid var(--brand-soft);border-top-color:var(--brand);animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.testbar{position:absolute;bottom:0;left:0;right:0;background:#C2410C;color:#fff;font-size:11px;font-weight:800;text-align:center;padding:4px;z-index:9}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="phone" id="phone">
+  <header class="appbar">
+    <div class="logo"><span class="dot">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg>
+    </span>Trajeto</div>
+    <span class="chip" id="dayChip">Horizonte</span>
+  </header>
+
+  <div class="route hide" id="route">
+    <div class="road"></div>
+    <div class="road-fill" id="roadFill" style="width:0"></div>
+    <div id="stops"></div>
+    <div class="car" id="car" style="left:10px">
+      <svg viewBox="0 0 64 44"><rect x="6" y="14" width="52" height="20" rx="8" fill="#0FA37F"/><path d="M16 15l7-10h18l8 10z" fill="#0FA37F"/><path d="M21 15l5-7h7v7zM36 15V8h5l5 7z" fill="#CFF3E8"/><circle cx="18" cy="35" r="6" fill="#1E2A2B"/><circle cx="46" cy="35" r="6" fill="#1E2A2B"/><circle cx="18" cy="35" r="2.4" fill="#fff"/><circle cx="46" cy="35" r="2.4" fill="#fff"/><rect x="54" y="20" width="5" height="5" rx="2" fill="#FFB547"/></svg>
+    </div>
+  </div>
+
+  <main class="stage" id="stage"></main>
+
+  <div class="toast" id="toast"></div>
+  <div class="sheet-bg" id="sheetBg"></div>
+  <section class="sheet" id="sheet" role="dialog" aria-label="Tabela de preços">
+    <div class="grip"></div>
+    <h3>Tabela de preços do Trajeto</h3>
+    <div id="fareSheet"></div>
+    <div style="height:14px"></div>
+    <button class="btn" id="closeSheet">Voltar à missão</button>
+  </section>
+</div>
+
+<script>
+/* =========================================================
+   CONFIG — conexão com o Google Forms
+   1) No Forms, menu ⋮ → "Gerar link pré-preenchido".
+   2) Preencha qualquer coisa em todas as perguntas → "Copiar link".
+   3) No link aparecem trechos "entry.123456789=". Cole cada número abaixo.
+   4) FORM_ID é o trecho entre /d/e/ e /viewform no link do formulário.
+   Enquanto FORM_ID estiver vazio, o jogo roda em MODO TESTE (não envia).
+   ========================================================= */
+const CONFIG = {
+  FORM_ID: "1FAIpQLScoMci-9sOX67FqX7sQzhtfcNlLat9MAOLKSxcRdUBKulfjjg",
+  PAGES: 9,                      // nº de seções do formulário
+  ENTRIES: {
+    consent:   "896303753",      // 1. Antes de começar
+    m1:        "1993127963",     // 2. Missão 1
+    m2:        "1303138788",     // 3. Missão 2
+    m3:        "454339710",      // 4. Missão 3
+    m4:        "1816296318",     // 5. Missão 4
+    m5:        "1208439834",     // 6. Missão 5
+    m6:        "1569312381",     // 7. Missão 6
+    m7:        "444376174",      // 8. Missão 7
+    perfil:    "182750333",      // 9. Perfil de passageiro
+    tabuleiro: "329855558",      // 10. Jogos de tabuleiro
+    rpg:       "1560386539",     // 11. RPG
+    trabalho:  "664535632",      // 12. Em que você trabalha
+    app:       "2028949669",     // 13. Frequência de uso de apps
+    idade:     "674613951",      // 14. Faixa de idade
+    genero:    "2113189443",     // 15. Gênero (opcional)
+    renda:     "358680082"       // 16. Renda familiar (opcional)
+  }
+};
+
+/* ---------- ilustrações ---------- */
+const ART = {
+  sun:`<svg class="art" viewBox="0 0 120 120"><circle cx="78" cy="42" r="22" fill="#FFB547"/><g stroke="#FFB547" stroke-width="5" stroke-linecap="round"><path d="M78 8v8M78 68v8M44 42h8M104 42h8M54 18l6 6M96 60l6 6M102 18l-6 6M60 60l-6 6"/></g><rect x="22" y="70" width="46" height="34" rx="6" fill="#1E2A2B" opacity=".85"/><rect x="36" y="62" width="18" height="10" rx="3" fill="none" stroke="#1E2A2B" stroke-width="4" opacity=".85"/><rect x="22" y="82" width="46" height="4" fill="#FFB547"/></svg>`,
+  rain:`<svg class="art" viewBox="0 0 120 120"><path d="M38 64a18 18 0 0 1 2-36 24 24 0 0 1 45 6 15 15 0 0 1 2 30z" fill="#5B8DEF"/><g stroke="#5B8DEF" stroke-width="4" stroke-linecap="round" opacity=".8"><path d="M44 76l-5 12M62 76l-5 12M80 76l-5 12M53 94l-4 10M71 94l-4 10"/></g></svg>`,
+  coffee:`<svg class="art" viewBox="0 0 120 120"><rect x="30" y="50" width="44" height="44" rx="10" fill="#0FA37F"/><path d="M74 60h8a10 10 0 0 1 0 20h-8" fill="none" stroke="#0FA37F" stroke-width="6"/><g stroke="#0FA37F" stroke-width="4" stroke-linecap="round" opacity=".6" fill="none"><path d="M42 40c-4-6 4-8 0-16M56 40c-4-6 4-8 0-16"/></g><rect x="22" y="96" width="60" height="6" rx="3" fill="#0FA37F" opacity=".5"/></svg>`,
+  trophy:`<svg class="art" viewBox="0 0 120 120"><path d="M40 22h40v26a20 20 0 0 1-40 0z" fill="#FFB547"/><path d="M40 30H26a14 14 0 0 0 16 18M80 30h14a14 14 0 0 1-16 18" fill="none" stroke="#FFB547" stroke-width="6"/><rect x="54" y="66" width="12" height="16" fill="#FFB547"/><rect x="40" y="82" width="40" height="12" rx="4" fill="#1E2A2B" opacity=".85"/></svg>`,
+  dinner:`<svg class="art" viewBox="0 0 120 120"><circle cx="64" cy="62" r="30" fill="#0FA37F" opacity=".25"/><circle cx="64" cy="62" r="20" fill="#0FA37F" opacity=".5"/><g stroke="#1E2A2B" stroke-width="5" stroke-linecap="round" opacity=".8"><path d="M24 34v54M18 34v14a6 6 0 0 0 12 0V34M104 34c-8 0-8 26 0 26v28"/></g><path d="M86 18a10 10 0 1 0 10 14 8 8 0 0 1-10-14z" fill="#FFB547"/></svg>`,
+  plane:`<svg class="art" viewBox="0 0 120 120"><path d="M14 70l92-36c6-2 9 5 4 8L74 66l-6 34-10 4-2-30-24 10-4 12-8 2-2-18z" fill="#5B8DEF"/><circle cx="96" cy="94" r="6" fill="#5B8DEF" opacity=".4"/><circle cx="20" cy="30" r="4" fill="#5B8DEF" opacity=".4"/></svg>`,
+  dice:`<svg class="art" viewBox="0 0 120 120"><rect x="30" y="30" width="56" height="56" rx="12" fill="#0FA37F" transform="rotate(-12 58 58)"/><g fill="#fff"><circle cx="46" cy="50" r="5"/><circle cx="70" cy="45" r="5"/><circle cx="58" cy="60" r="5"/><circle cx="48" cy="74" r="5"/><circle cx="72" cy="69" r="5"/></g></svg>`,
+  id:`<svg class="art" viewBox="0 0 120 120"><rect x="18" y="30" width="84" height="60" rx="10" fill="#FFB547"/><circle cx="44" cy="58" r="12" fill="#fff"/><path d="M30 82a14 14 0 0 1 28 0" fill="#fff"/><g stroke="#fff" stroke-width="5" stroke-linecap="round"><path d="M66 52h24M66 64h18M66 76h22"/></g></svg>`
+};
+const CITY = `<svg class="city" viewBox="0 0 360 170" aria-hidden="true">
+  <rect width="360" height="170" fill="var(--brand-soft)"/>
+  <circle cx="300" cy="44" r="20" fill="#FFB547" opacity=".9"/>
+  <g fill="#0FA37F" opacity=".35"><rect x="20" y="60" width="34" height="80" rx="4"/><rect x="60" y="34" width="28" height="106" rx="4"/><rect x="94" y="72" width="40" height="68" rx="4"/><rect x="140" y="46" width="30" height="94" rx="4"/><rect x="176" y="80" width="36" height="60" rx="4"/><rect x="218" y="56" width="26" height="84" rx="4"/><rect x="250" y="74" width="44" height="66" rx="4"/><rect x="300" y="90" width="40" height="50" rx="4"/></g>
+  <rect y="132" width="360" height="38" fill="var(--road)"/>
+  <g stroke="#FFB547" stroke-width="4" stroke-dasharray="18 14"><path d="M0 151h360"/></g>
+  <g transform="translate(120 118)"><rect x="6" y="14" width="52" height="20" rx="8" fill="#0FA37F"/><path d="M16 15l7-10h18l8 10z" fill="#0FA37F"/><path d="M21 15l5-7h7v7zM36 15V8h5l5 7z" fill="#CFF3E8"/><circle cx="18" cy="35" r="6" fill="#111"/><circle cx="46" cy="35" r="6" fill="#111"/></g>
+  <g transform="translate(250 60)"><path d="M14 40S0 27 0 14a14 14 0 0 1 28 0c0 13-14 26-14 26z" fill="#1E2A2B"/><circle cx="14" cy="14" r="5" fill="#fff"/></g>
+</svg>`;
+
+const FARE = `<div class="fare">
+  <div class="fare-line"><span>Tarifa base</span><b>R$ 4,00</b></div>
+  <div class="fare-line"><span>Por km</span><b>R$ 1,50</b></div>
+  <div class="fare-line"><span>Por minuto</span><b>R$ 0,30</b></div>
+  <div class="fare-note"><b>Dinâmica</b> multiplica o total (base + km + minutos).<br><b>Tarifa mínima: R$ 9,00</b> — vale para o valor já com dinâmica.</div>
+</div>`;
+
+/* ---------- roteiro ---------- */
+const opts4 = a => a;
+const STEPS = [
+  {type:"cover"},
+  {type:"q", key:"consent", kind:"consent", chip:"Boas-vindas",
+    q:"Antes de começar",
+    options:["Li e concordo em participar. Tenho 18 anos ou mais.","Não concordo em participar."]},
+  {type:"howto", chip:"Como jogar"},
+  {type:"q", key:"m1", n:1, chip:"Aquecimento", tone:"brand", art:"dice",
+    title:"Hora de apostar em você",
+    text:"Nas próximas missões você vai calcular o preço de 3 corridas.",
+    q:"Quantas você acha que vai acertar?", options:["0","1","2","3"], layout:"big"},
+  {type:"q", key:"m2", n:2, chip:"Dia 1", tone:"sun", art:"sun", fare:true,
+    title:"Ida ao trabalho", text:"Primeiro dia em Horizonte. Céu limpo, app tranquilo.",
+    q:"Corrida de 5 km e 12 minutos, sem dinâmica. Quanto custa?",
+    options:["R$ 11,10","R$ 11,50","R$ 15,10","R$ 23,50"], layout:"grid2"},
+  {type:"q", key:"m3", n:3, chip:"Dia 2", tone:"rain", art:"rain", fare:true,
+    title:"Chuva na cidade", text:"Choveu e o app está cheio.",
+    q:"Corrida de 8 km e 20 minutos, com dinâmica de 1,5x. Quanto custa?",
+    options:["R$ 22,00","R$ 23,50","R$ 28,00","R$ 33,00"], layout:"grid2"},
+  {type:"q", key:"m4", n:4, chip:"Dia 3", tone:"brand", art:"coffee", fare:true,
+    title:"Encontro com um amigo", text:"Depois da entrevista, você vai encontrar um amigo ali perto.",
+    q:"Corrida de 2 km e 6 minutos, com dinâmica de 1,5x. Quanto custa?",
+    options:["R$ 8,80","R$ 9,00","R$ 13,20","R$ 13,50"], layout:"grid2"},
+  {type:"q", key:"m5", n:5, chip:"Ranking", tone:"sun", art:"trophy",
+    title:"Ranking dos jogadores", text:"Pense nos cálculos que você acabou de fazer.",
+    q:"De 100 jogadores, quantos você acha que acertaram MENOS cálculos que você?",
+    options:["Menos de 25","De 25 a 49","De 50 a 74","75 ou mais"]},
+  {type:"q", key:"m6", n:6, chip:"Dia 3", tone:"brand", art:"dinner",
+    title:"Jantar de despedida", text:"Pelo histórico do app, esse trajeto leva em média 34 minutos (espera + viagem).",
+    q:"O trânsito parece tranquilo hoje. Quanto tempo você prevê do pedido até chegar?",
+    options:["Uns 25 minutos","Uns 30 minutos","Uns 35 minutos","Uns 45 minutos"]},
+  {type:"q", key:"m7", n:7, chip:"Dia 3", tone:"rain", art:"plane", fare:true,
+    title:"Ida ao aeroporto", text:"Corrida de 9 km. A viagem pode levar de 20 a 40 min e a dinâmica pode ir de 1,0x a 1,5x.",
+    q:"Escolha a faixa em que você tem 90% de certeza de que o preço vai ficar:",
+    options:["Entre R$ 30 e R$ 33","Entre R$ 28 e R$ 38","Entre R$ 23 e R$ 45","Entre R$ 15 e R$ 60"]},
+  {type:"ficha"},
+  {type:"q", key:"perfil", chip:"Ficha do jogador", tone:"sun", art:"id",
+    title:"Seu estilo", text:"Escolha o que mais combina com você.",
+    q:"Qual é o seu perfil de passageiro?",
+    options:["Estratégia: gosto de pensar antes de agir","Aventura: gosto de arriscar e ver no que dá","Economia: cada centavo conta","Pontualidade: o importante é chegar na hora"],
+    emoji:["🧭","🎲","🪙","⏱️"]},
+  {type:"q", key:"tabuleiro", chip:"Ficha do jogador",
+    q:"Você já jogou jogos de tabuleiro?",
+    options:["Nunca joguei","Já joguei poucas vezes","Jogo de vez em quando","Jogo com frequência"]},
+  {type:"q", key:"rpg", chip:"Ficha do jogador",
+    q:"Você já jogou RPG?",
+    hint:"RPG é um jogo em que você interpreta um personagem e toma decisões numa história, em mesa ou em jogos digitais.",
+    options:["Nunca joguei","Já joguei poucas vezes","Jogo de vez em quando","Jogo com frequência"]},
+  {type:"q", key:"trabalho", chip:"Ficha do jogador", layout:"compact",
+    q:"Em que você trabalha?",
+    options:["Administração, finanças ou negócios","Comércio ou vendas","Educação","Saúde","Indústria ou construção","Tecnologia","Serviço público","Transporte ou logística","Serviços em geral","Trabalho por conta própria ou empreendedor(a)","Sou estudante e não trabalho","Não estou trabalhando no momento","Outra área"]},
+  {type:"q", key:"app", chip:"Ficha do jogador",
+    q:"Com que frequência você usa aplicativos de transporte?",
+    options:["Nunca usei","Menos de uma vez por mês","Algumas vezes por mês","Toda semana","Quase todos os dias"]},
+  {type:"q", key:"idade", chip:"Ficha do jogador",
+    q:"Qual é a sua faixa de idade?",
+    options:["18 a 24 anos","25 a 34 anos","35 a 44 anos","45 a 59 anos","60 anos ou mais"]},
+  {type:"q", key:"genero", chip:"Ficha do jogador", optional:true,
+    q:"Como você se identifica em relação ao gênero?", hint:"Opcional.",
+    options:["Mulher","Homem","Outro","Prefiro não responder"]},
+  {type:"q", key:"renda", chip:"Ficha do jogador", optional:true, last:true,
+    q:"Qual é a renda mensal da sua família, em salários mínimos (SM)?", hint:"Opcional.",
+    options:["Até 2 SM","De 2 a 4 SM","De 4 a 10 SM","De 10 a 20 SM","Acima de 20 SM","Prefiro não responder"]},
+  {type:"send"}
+];
+
+/* ---------- estado ---------- */
+const answers = {};
+let idx = 0, current = null;
+const $ = s => document.querySelector(s);
+const stage = $("#stage");
+const TEST = !CONFIG.FORM_ID;
+if (TEST) { const t=document.createElement("div"); t.className="testbar"; t.textContent="MODO TESTE · respostas não são enviadas (preencha o CONFIG)"; $("#phone").appendChild(t); }
+
+/* trilha: 7 missões + bandeira */
+const MISSIONS = 7;
+(function buildStops(){
+  const wrap = $("#stops"); let h="";
+  for(let i=1;i<=MISSIONS+1;i++){
+    h += `<div class="stop${i===MISSIONS+1?' flag':''}" data-i="${i}"></div>`;
+  }
+  wrap.innerHTML = h; layoutRoute();
+})();
+function layoutRoute(){
+  const w = $("#route").clientWidth - 20;
+  document.querySelectorAll(".stop").forEach(s=>{
+    const i = +s.dataset.i; s.style.left = (10 + w*(i/(MISSIONS+1))) + "px";
+  });
+}
+window.addEventListener("resize", ()=>{ layoutRoute(); updateRoute(false); });
+let doneCount = 0;
+function updateRoute(animate=true){
+  const w = $("#route").clientWidth - 20;
+  const x = 10 + w*(doneCount/(MISSIONS+1));
+  $("#car").style.left = x+"px"; $("#roadFill").style.width = (x-10)+"px";
+  document.querySelectorAll(".stop").forEach(s=> s.classList.toggle("done", +s.dataset.i<=doneCount));
+  if(animate){ const c=$("#car"); c.classList.remove("bump"); void c.offsetWidth; c.classList.add("bump"); }
+}
+
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),1500); }
+function setChip(text,tone){ const c=$("#dayChip"); c.textContent=text; c.className="chip"+(tone==="rain"?" rain":tone==="sun"?" sun":""); }
+
+/* ---------- render ---------- */
+function render(step = STEPS[idx]){
+  const el = document.createElement("section"); el.className="screen";
+  $("#route").classList.toggle("hide", !(step.type==="q" && step.n) && step.type!=="ficha");
+
+  if(step.type==="cover"){
+    setChip("Horizonte");
+    el.innerHTML = `<div class="hero">
+      ${CITY}
+      <div class="sub">Um jogo de decisões sobre corridas em app</div>
+      <h1>Trajeto</h1>
+      <p>Você acaba de chegar a <b>Horizonte</b>, uma cidade grande e movimentada. Durante três dias, vai se deslocar usando o Trajeto. Em cada missão você calcula preços, prevê tempos e aposta nas próprias habilidades.</p>
+      <div class="meta"><span class="chip">⏱ ~8 minutos</span><span class="chip sun">Sem calculadora</span><span class="chip rain">Sem pressa</span></div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" data-go>Começar viagem</button>`;
+  }
+  else if(step.type==="howto"){
+    setChip("Como jogar");
+    el.innerHTML = `<div class="kicker">Como jogar</div>
+      <div class="q" style="font-size:22px;font-weight:900">7 missões curtas em 3 dias</div>
+      <p class="hint" style="margin:0 0 14px">Guarde esta tabela de cabeça ou consulte quando quiser: ela fica no botão <b>Ver tabela de preços</b> em cada missão.</p>
+      ${FARE}
+      <div class="spacer"></div>
+      <button class="btn" data-go>Bora pra primeira missão</button>`;
+  }
+  else if(step.type==="ficha"){
+    setChip("Ficha do jogador","sun");
+    el.innerHTML = `<div class="center">
+      <svg class="badge" viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" fill="var(--brand-soft)"/><path d="M60 24l10 22 24 3-18 16 5 24-21-12-21 12 5-24-18-16 24-3z" fill="#FFB547"/></svg>
+      <h2>Missões cumpridas!</h2>
+      <p>Você chegou ao fim da viagem por Horizonte. Para terminar, conte um pouco sobre você na sua ficha de jogador.</p>
+    </div>
+    <button class="btn" data-go>Preencher ficha</button>`;
+  }
+  else if(step.type==="send"){
+    setChip("Chegada");
+    el.innerHTML = `<div class="center" id="sendBox"><div class="spin"></div><h2>Registrando sua viagem…</h2><p>Só um instante.</p></div>`;
+    setTimeout(submit, 400);
+  }
+  else if(step.type==="declined"){
+    setChip("Até logo");
+    el.innerHTML = `<div class="center"><h2>Tudo bem!</h2><p>Obrigado pelo seu tempo. Você pode fechar esta página.</p></div>
+      <button class="btn ghost" data-back>Mudei de ideia, quero participar</button>`;
+  }
+  else if(step.type==="q"){
+    setChip(step.n ? `Missão ${step.n} · ${step.chip}` : step.chip, step.tone);
+    let top = "";
+    if(step.kind==="consent"){
+      top = `<div class="kicker">Antes de começar</div>
+      <div class="consent">
+        <p>Este jogo faz parte de uma <b>pesquisa acadêmica</b> sobre como as pessoas tomam decisões financeiras no dia a dia. Você vai viver uma pequena aventura como passageiro(a) de um aplicativo de transporte e tomar decisões sobre o custo das corridas.</p>
+        <p>Leva cerca de 8 minutos. Primeiro você joga as missões; no final responde a algumas perguntas sobre você. Não há respostas certas ou erradas na maior parte das situações. <b>Você não precisa se identificar.</b></p>
+        <p>A participação é voluntária, para maiores de 18 anos, e você pode parar a qualquer momento.</p>
+        <p><b>Informações da pesquisa:</b> instituição, pesquisador(a) responsável, contato e número do parecer do Comitê de Ética (CAAE): a preencher pela equipe.</p>
+      </div>`;
+    } else if(step.title){
+      top = `<div class="scene s-${step.tone||'brand'}">${ART[step.art]||""}
+        ${step.n?`<div class="kicker">Missão ${step.n} de ${MISSIONS}</div>`:""}
+        <h2>${step.title}</h2>${step.text?`<p>${step.text}</p>`:""}</div>`;
+    } else {
+      top = `<div class="kicker" style="margin-top:6px">Ficha do jogador</div>`;
+    }
+    const fareBtn = step.fare ? `<button class="fare-btn" data-fare>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+      Ver tabela de preços</button>` : "";
+    const cls = step.layout==="grid2"?"opts grid2":"opts";
+    const optHtml = step.options.map((o,i)=>{
+      const sel = answers[step.key]===o ? " sel":"";
+      const big = step.layout==="big" ? " big":"";
+      const small = step.layout==="compact" ? " small":"";
+      const em = step.emoji ? `<span class="em">${step.emoji[i]}</span>` : `<span class="bubble"></span>`;
+      return `<button class="opt${sel}${big}${small}" data-v="${i}" role="radio" aria-checked="${!!sel}">${em}<span>${o}</span></button>`;
+    }).join("");
+    const label = step.kind==="consent" ? "Continuar" : step.last ? "Finalizar" : step.n ? "Confirmar" : "Próxima";
+    el.innerHTML = `${top}
+      <div class="q">${step.q}</div>${step.hint?`<p class="hint">${step.hint}</p>`:""}
+      ${fareBtn}
+      <div class="${cls}" role="radiogroup" ${step.layout==="big"?'style="grid-template-columns:repeat(4,1fr)"':''}>${optHtml}</div>
+      <div class="spacer"></div>
+      <div class="row">
+        ${idx>1 && !step.n ? `<button class="btn ghost" data-back style="flex:0 0 auto">Voltar</button>`:""}
+        <button class="btn" data-ok style="flex:1" ${answers[step.key]||step.optional?"":"disabled"}>${label}</button>
+      </div>`;
+  }
+
+  // troca de tela
+  stage.appendChild(el);
+  requestAnimationFrame(()=>{ el.classList.add("on"); if(current){ const old=current; old.classList.remove("on"); old.classList.add("off"); setTimeout(()=>old.remove(),450);} current=el; });
+  wire(el, step);
+}
+
+function wire(el, step){
+  el.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>go(1));
+  el.querySelectorAll("[data-back]").forEach(b=>b.onclick=()=>{ if(step.type==="declined"){ idx=1; render(); } else go(-1); });
+  el.querySelectorAll("[data-fare]").forEach(b=>b.onclick=openSheet);
+  const ok = el.querySelector("[data-ok]");
+  el.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{
+    el.querySelectorAll(".opt").forEach(x=>{x.classList.remove("sel");x.setAttribute("aria-checked","false")});
+    b.classList.add("sel"); b.setAttribute("aria-checked","true");
+    answers[step.key] = step.options[+b.dataset.v];
+    if(ok) ok.disabled = false;
+  });
+  if(ok) ok.onclick=()=>{
+    if(step.kind==="consent" && answers.consent===step.options[1]){ STEPS_DECLINED(); return; }
+    if(step.n){ doneCount = Math.max(doneCount, step.n); updateRoute(); toast(step.n===MISSIONS?"Última corrida concluída 🏁":"Corrida registrada ✓"); }
+    if(step.last){ doneCount = MISSIONS+1; }
+    go(1);
+  };
+}
+function STEPS_DECLINED(){ render({type:"declined"}); }
+function go(d){ idx=Math.max(0,Math.min(STEPS.length-1,idx+d)); render(); }
+
+/* tabela de preços (bottom sheet) */
+$("#fareSheet").innerHTML = FARE;
+function openSheet(){ $("#sheet").classList.add("open"); $("#sheetBg").classList.add("open"); }
+function closeSheet(){ $("#sheet").classList.remove("open"); $("#sheetBg").classList.remove("open"); }
+$("#closeSheet").onclick=closeSheet; $("#sheetBg").onclick=closeSheet;
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeSheet(); });
+
+/* ---------- envio ---------- */
+async function submit(){
+  const body = new URLSearchParams();
+  body.append("pageHistory", Array.from({length:CONFIG.PAGES||1},(_,i)=>i).join(","));
+  for(const [k,entry] of Object.entries(CONFIG.ENTRIES)){
+    if(entry && answers[k]!=null) body.append(entry.startsWith("entry.")?entry:"entry."+entry, answers[k]);
+  }
+  let ok = true;
+  if(TEST){ console.log("[Trajeto · modo teste] respostas:", JSON.stringify(answers)); await new Promise(r=>setTimeout(r,900)); }
+  else{
+    try{
+      await fetch(`https://docs.google.com/forms/d/e/${CONFIG.FORM_ID}/formResponse`,
+        {method:"POST", mode:"no-cors", headers:{"Content-Type":"application/x-www-form-urlencoded"}, body});
+    }catch(e){ ok=false; }
+  }
+  const box = $("#sendBox");
+  if(ok){
+    box.innerHTML = `<svg class="badge" viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" fill="var(--brand)"/><path d="M38 62l15 15 30-32" fill="none" stroke="var(--brand-ink)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <h2>Você chegou!</h2><p>Sua viagem por Horizonte foi registrada. Muito obrigado por participar da pesquisa.</p>
+      ${TEST?`<p style="font-size:13px">(modo teste: respostas exibidas no console)</p>`:""}`;
+  } else {
+    box.innerHTML = `<h2>Ops, sem conexão</h2><p>Não conseguimos enviar suas respostas. Verifique a internet e tente de novo.</p><button class="btn" id="retry">Tentar novamente</button>`;
+    $("#retry").onclick=()=>{ box.innerHTML=`<div class="spin"></div><h2>Registrando…</h2>`; submit(); };
+  }
+}
+
+render();
+</script>
+</body>
+</html>
